@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,46 +15,56 @@ import (
 	"time"
 )
 
-var startIp, endIp, port string
+var startIp, endIp, port, filePath string
 var threads int
 
 func Init() {
 	flag.StringVar(&startIp, "s", "", "Start IP")
 	flag.StringVar(&endIp, "e", "", "End IP")
-	flag.StringVar(&port, "p", "445","port")
+	flag.StringVar(&port, "p", "445", "port")
+	flag.StringVar(&filePath, "f", "ip.txt", "ip list")
 	flag.IntVar(&threads, "t", 10, "Threads,Default 10")
 }
 func main() {
 	Init()
 	flag.Usage = func() {
 		fmt.Println("portscan -s 192.168.1.1 -e 192.168.255.255 -t 10")
+		fmt.Println("portscan -s 192.168.1.1 -p 1-65535 -t 10")
+		fmt.Println("portscan -f ip.txt -p 1-65535 -t 10")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-
-	if !checkIp(startIp) && !checkIp(endIp) {
-		log.Fatalln("[X]: Ip format error;")
-	}
 	ports := getPort()
-	ips := getIp()
+	var ips []string
+	if startIp != "" {
+		if endIp == "" {
+			endIp = startIp
+		}
+		if !checkIp(startIp) && !checkIp(endIp) {
+			log.Fatalln("[X]: Ip format error;")
+		}
+		ips = getIp()
+	} else {
+		ips = getIpWithFile()
+	}
 	var addr []string
 	for _, i := range ips {
 		for _, p := range ports {
-			addr=append(addr,i + ":" + p)
+			addr = append(addr, i+":"+p)
 		}
 	}
 	var wg sync.WaitGroup
 	for {
-		if len(addr)<=0{
+		if len(addr) <= 0 {
 			break
 		}
-		for i:=0;i<threads;i++{
-			if len(addr)<=0{
+		for i := 0; i < threads; i++ {
+			if len(addr) <= 0 {
 				break
 			}
 			wg.Add(1)
-			go scan(addr[0],&wg)
-			addr=addr[1:]
+			go scan(addr[0], &wg)
+			addr = addr[1:]
 		}
 		wg.Wait()
 	}
@@ -134,10 +147,26 @@ func getIp() []string {
 	}
 	return ips
 }
-func scan(addr string,wg *sync.WaitGroup){
+func getIpWithFile() (ips []string) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Fatalln("open " + filePath + "error")
+	}
+	defer file.Close()
+	reader := bufio.NewReader(file)
+	for {
+		ip, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		ips = append(ips, strings.TrimSpace(ip))
+	}
+	return ips
+}
+func scan(addr string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	_,err:=net.DialTimeout("tcp",addr,time.Second*1)
-	if err==nil {
-		log.Println("[+] :"+addr+" is open")
+	_, err := net.DialTimeout("tcp", addr, time.Second*1)
+	if err == nil {
+		log.Println("[+] :" + addr + " is open")
 	}
 }
