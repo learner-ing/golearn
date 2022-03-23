@@ -165,8 +165,9 @@ func getIpWithFile() (ips []string) {
 }
 func scan(addr string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	_, err := net.DialTimeout("tcp", addr, time.Second*1)
+	conn, err := net.DialTimeout("tcp", addr, time.Second*1)
 	if err == nil {
 		log.Println("[+] :" + addr + " is open")
+		conn.Close()
 	}
 }
