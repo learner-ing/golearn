@@ -169,5 +169,5 @@ func scan(addr string, wg *sync.WaitGroup) {
 	if err == nil {
 		log.Println("[+] :" + addr + " is open")
 	}
-	conn.Close()
+	defer conn.Close()
 }
